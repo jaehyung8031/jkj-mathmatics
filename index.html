@@ -318,6 +318,8 @@ svg.graph.wide{width:19rem;height:auto}
 .badge-earn .row .badge-ico{animation:starPop .5s cubic-bezier(.2,1.8,.4,1) both}
 .lose .badge-earn{background:rgba(255,255,255,.1);color:#dfe3ff;border-color:#7b80c2}
 .modal-content.badge{border-color:#f0b400}
+.hist-btn{margin-top:.7rem;padding:.75rem 1rem;font-size:1.05rem}
+#hist-modal-list .history-item{padding:.5rem .3rem}
 .opt-in{display:inline-block;white-space:normal}
 .review-item .q-lead{font-size:1rem}.review-item .q-math{font-size:1.1rem;margin-top:.2rem}
 .modal-q .q-lead{font-size:1.1rem}.modal-q .q-math{font-size:1.25rem}
@@ -353,6 +355,7 @@ html[data-layout="port"] .timer{margin:.3rem 0 1rem}
       </div>
       <div class="pass-info o2" id="pass-info"></div>
       <button class="btn pulse o2" onclick="startGame()">모험 출발! ▶</button>
+      <button class="btn ghost o2 hist-btn" onclick="openHistory()">📜 모험 기록 보기 <span id="hist-count"></span></button>
     </div>
     <div class="start-right">
       <div class="section-label o1">🗺️ 모험 지역 (학년 → 단원)</div>
@@ -456,6 +459,17 @@ html[data-layout="port"] .timer{margin:.3rem 0 1rem}
     <div id="bdg-summary"></div>
     <div class="bdg-list" id="bdg-list"></div>
     <button class="btn" onclick="closeBadgeLog()">닫기</button>
+  </div>
+</div>
+
+<!-- 모험 기록 팝업 -->
+<div id="history-modal" class="modal-overlay" role="dialog" aria-modal="true" onclick="if(event.target===this)closeHistory()">
+  <div class="modal-content badge" style="border-color:var(--blue)">
+    <div class="title-font" style="font-size:1.6rem;color:var(--blue)">📜 모험 기록</div>
+    <div id="hist-summary"></div>
+    <div class="history-container" id="hist-modal-list" style="max-height:52vh;margin:.7rem 0 .4rem;text-align:left;font-size:.95rem"></div>
+    <div style="font-size:.8rem;color:#888;margin-bottom:.8rem">이 기기(브라우저)에 최근 200개까지 저장됩니다. 최신 기록이 위에 있어요.</div>
+    <button class="btn" onclick="closeHistory()">닫기</button>
   </div>
 </div>
 
@@ -2258,7 +2272,7 @@ function renderStart(){
   const keys=Object.keys(MONS); document.getElementById('start-mons').innerHTML=keys.map((k,i)=>monSpan(k,'happy',46,`bob d${i}`)).join('');
   document.querySelectorAll('.grade-tab').forEach(b=>b.onclick=()=>{ state.grade=+b.dataset.g; state.cat='all'; renderCats(); });
   document.querySelectorAll('.cnt-btn').forEach(b=>b.onclick=()=>{ state.pickTotal=+b.dataset.n; document.querySelectorAll('.cnt-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); updatePass(); });
-  renderCats(); updatePass(); renderBadgePanel();
+  renderCats(); updatePass(); renderBadgePanel(); updateHistCount();
 }
 function renderCats(){
   document.querySelectorAll('.grade-tab').forEach(b=>b.classList.toggle('selected',+b.dataset.g===state.grade));
@@ -2278,7 +2292,7 @@ function updatePass(){ const b=BADGE_RULE[state.pickTotal]||0; document.getEleme
 
 function switchScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); window.scrollTo({top:0,behavior:'smooth'}); }
 function clearResultFx(){ stopFx(); const c=document.getElementById('game-container'); c.classList.remove('win','lose'); document.getElementById('result-fx').innerHTML=''; }
-function goHome(){ stopTimer(); clearResultFx(); renderBadgePanel(); switchScreen('start-screen'); }
+function goHome(){ stopTimer(); clearResultFx(); renderBadgePanel(); updateHistCount(); switchScreen('start-screen'); }
 
 function startGame(){
   clearResultFx();
@@ -2412,9 +2426,18 @@ function confirmQuit(){ closeQuit(); state.quit=true; finishGame(true); }
 /* =========================================================
    기록 (localStorage 실패 시에도 동작)
    ========================================================= */
+function historyHTML(h){ return h.length?h.map((x,i)=>`<div class="history-item"><span style="color:#666">#${i+1} ${x.status==='성공'?'🏆':x.status==='포기'?'🏃':'💥'} [${x.status}] ${x.mode} · ${x.ts?fmtWhen(x.ts):x.time}</span><b style="color:var(--blue)">${x.score}</b></div>`).join(''):'<div style="color:#888;text-align:center;padding:1rem">아직 모험 기록이 없어요.</div>'; }
+function updateHistCount(){ const el=document.getElementById('hist-count'); if(el){ const n=getHistory().length; el.textContent=n?`(${n})`:''; } }
+function openHistory(){
+  const h=getHistory(), main=h.filter(x=>!/오답 복습/.test(x.mode)), win=main.filter(x=>x.status==='성공').length;
+  document.getElementById('hist-summary').innerHTML=`<div class="bdg-sum"><div>모험 횟수<b>${main.length}회</b></div><div>모험 성공<b>${win}회</b></div><div>성공률<b>${main.length?Math.round(win/main.length*100):0}%</b></div></div>`;
+  document.getElementById('hist-modal-list').innerHTML=historyHTML(h);
+  document.getElementById('history-modal').classList.add('open');
+}
+function closeHistory(){ document.getElementById('history-modal').classList.remove('open'); }
 const HKEY='pokemon_math_adventure_history_v2';
 function getHistory(){ try{ const d=localStorage.getItem(HKEY); const a=d?JSON.parse(d):[]; return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function saveHistory(entry){ try{ const h=getHistory(); h.unshift(entry); localStorage.setItem(HKEY,JSON.stringify(h.slice(0,20))); }catch(e){} }
+function saveHistory(entry){ try{ const h=getHistory(); h.unshift(entry); localStorage.setItem(HKEY,JSON.stringify(h.slice(0,200))); }catch(e){} }
 
 /* =========================================================
    결과 화면
@@ -2483,9 +2506,9 @@ function finishGame(quit=false){
 
   // 기록
   const now=new Date(); const ts=`${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  saveHistory({time:ts,mode:rv?`${modeLabel()} 오답 복습`:modeLabel(),score:`${state.correct}/${t}`,status:ok?'성공':quit?'포기':'실패'});
+  saveHistory({time:ts,mode:rv?`${modeLabel()} 오답 복습`:modeLabel(),score:`${state.correct}/${t}`,status:ok?'성공':quit?'포기':'실패',ts:Date.now()});
   const h=getHistory();
-  document.getElementById('history-list').innerHTML=h.length?h.map((x,i)=>`<div class="history-item"><span style="color:#666">#${i+1} ${x.status==='성공'?'🏆':x.status==='포기'?'🏃':'💥'} [${x.status}] ${x.mode} · ${x.time}</span><b style="color:var(--blue)">${x.score}</b></div>`).join(''):'<div style="color:#888;text-align:center">기록이 없습니다.</div>';
+  document.getElementById('history-list').innerHTML=historyHTML(h);
 
   // 틀린 문제 다시 풀기 버튼 (틀린 문제가 있으면 항상 표시)
   state.lastWrongs=state.wrongs.slice();
@@ -2543,6 +2566,7 @@ function toggleSound(){ soundOn=!soundOn; document.getElementById('sound-btn').t
 
 /* ---------- 키보드 ---------- */
 document.addEventListener('keydown',e=>{
+  if(document.getElementById('history-modal').classList.contains('open')){ if(e.key==='Escape'||e.key==='Enter') closeHistory(); return; }
   if(document.getElementById('badge-modal').classList.contains('open')){ if(e.key==='Escape'||e.key==='Enter') closeBadgeLog(); return; }
   if(document.getElementById('badge-reset-modal').classList.contains('open')){ if(e.key==='Escape') closeBadgeReset(); return; }
   if(explainOpen){ if(e.key==='Enter'||e.key==='Escape'||e.key===' '){ e.preventDefault(); closeExplain(); } return; }
